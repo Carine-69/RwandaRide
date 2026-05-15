@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Trip, Driver
-from schemas import TripCreate, TripResponse
+from schemas import TripCreate, TripResponse, TripDetailResponse
 from routers.auth import get_current_user
 from models import User
 from typing import List
@@ -140,12 +140,37 @@ def get_trips(db: Session = Depends(get_db), current_user: User = Depends(get_cu
     return db.query(Trip).all()
 
 # ─── GET ONE TRIP ───────────────────────────────
-@router.get("/{trip_id}", response_model=TripResponse)
-def get_trip(trip_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.get("/{trip_id}/detail", response_model=TripDetailResponse)
+def get_trip_detail(trip_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
-    return trip
+    
+    driver_info = None
+    if trip.driver_id:
+        driver = db.query(Driver).filter(Driver.id == trip.driver_id).first()
+        if driver:
+            driver_user = db.query(User).filter(User.id == driver.user_id).first()
+            driver_info = {
+                "name": driver_user.name,
+                "phone": driver_user.phone,
+                "vehicle_type": driver.vehicle_type,
+                "vehicle_plate": driver.vehicle_plate
+            }
+    
+    return {
+        "id": trip.id,
+        "rider_id": trip.rider_id,
+        "driver_id": trip.driver_id,
+        "pickup_location": trip.pickup_location,
+        "destination": trip.destination,
+        "fare": trip.fare,
+        "status": trip.status,
+        "vehicle_type": trip.vehicle_type,
+        "distance": trip.distance,
+        "created_at": trip.created_at,
+        "driver": driver_info
+    }
 
 # ─── UPDATE TRIP STATUS ─────────────────────────
 @router.patch("/{trip_id}/status")

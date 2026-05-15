@@ -72,3 +72,29 @@ class PaymentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+#_____Driver Info_____________________________________
+class DriverInfo(BaseModel):
+    name: str
+    phone: str
+    vehicle_type: str
+    vehicle_plate: str
+
+    class Config:
+        from_attributes = True
+
+class TripDetailResponse(BaseModel):
+    id: int
+    rider_id: int
+    driver_id: Optional[int] = None
+    pickup_location: str
+    destination: str
+    fare: Optional[float] = None
+    status: str
+    vehicle_type: Optional[str] = None
+    distance: Optional[float] = None
+    created_at: datetime
+    driver: Optional[DriverInfo] = None
+
+    class Config:
+        from_attributes = True
