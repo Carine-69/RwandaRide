@@ -9,6 +9,11 @@ import 'screens/auth/register_screen.dart';
 import 'screens/rider/rider_home_screen.dart';
 import 'screens/rider/trip_detail_screen.dart';
 import 'screens/driver/driver_home_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/rider/invoice_screen.dart';
+import 'screens/rider/receipt_screen.dart';
+import 'screens/driver/driver_receipt_screen.dart';
+import 'screens/rider/map_booking_screen.dart';
 
 void main() {
   runApp(const RwandaRideApp());
@@ -33,9 +38,14 @@ class RwandaRideApp extends StatelessWidget {
             home: _resolveHome(auth),
             routes: {
               '/login': (_) => const LoginScreen(),
+              '/profile': (_) => const ProfileScreen(),
               '/register': (_) => const RegisterScreen(),
               '/rider/home': (_) => const RiderHomeScreen(),
               '/rider/trip-detail': (_) => const TripDetailScreen(),
+              '/invoice': (_) => const InvoiceScreen(),
+              '/receipt': (_) => const ReceiptScreen(),
+              '/map-booking': (_) => const MapBookingScreen(),
+              '/driver/receipt': (_) => const DriverReceiptScreen(),
               '/driver/home': (_) => const DriverHomeScreen(),
               '/logout': (ctx) {
                 // Trigger logout and return login screen

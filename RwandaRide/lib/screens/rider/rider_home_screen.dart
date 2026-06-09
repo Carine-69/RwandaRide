@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/trip_provider.dart';
@@ -6,7 +7,7 @@ import '../../models/trip.dart';
 import '../../models/payment.dart';
 import '../../services/api_service.dart';
 import '../../widgets/custom_button.dart';
-import '../../widgets/custom_text_field.dart';
+import '../profile_screen.dart';
 
 class RiderHomeScreen extends StatefulWidget {
   const RiderHomeScreen({super.key});
@@ -16,17 +17,8 @@ class RiderHomeScreen extends StatefulWidget {
 }
 
 class _RiderHomeScreenState extends State<RiderHomeScreen> {
-  final _pickupController = TextEditingController();
-  final _destController = TextEditingController();
-  String _vehicleType = 'moto';
   int _tabIndex = 0;
-
-  static const _vehicles = [
-    {'type': 'moto', 'label': 'Moto', 'icon': Icons.two_wheeler, 'rate': '200'},
-    {'type': 'economy', 'label': 'Economy', 'icon': Icons.directions_car, 'rate': '350'},
-    {'type': 'standard', 'label': 'Standard', 'icon': Icons.car_rental, 'rate': '500'},
-    {'type': 'xl', 'label': 'XL', 'icon': Icons.airport_shuttle, 'rate': '700'},
-  ];
+  Timer? _timer;
 
   @override
   void initState() {
@@ -34,71 +26,28 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TripProvider>().loadMyTrips();
     });
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) context.read<TripProvider>().loadMyTrips();
+    });
   }
 
   @override
   void dispose() {
-    _pickupController.dispose();
-    _destController.dispose();
+    _timer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _bookRide() async {
-    if (_pickupController.text.isEmpty || _destController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter pickup and destination')),
-      );
-      return;
-    }
-    final trip = await context.read<TripProvider>().bookRide(
-          pickupLocation: _pickupController.text.trim(),
-          destination: _destController.text.trim(),
-          vehicleType: _vehicleType,
-        );
-    if (!mounted) return;
-    if (trip != null) {
-      _pickupController.clear();
-      _destController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ride requested! Waiting for a driver...'), backgroundColor: AppTheme.success),
-      );
-    } else {
-      final err = context.read<TripProvider>().error ?? 'Failed to book ride';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err), backgroundColor: AppTheme.danger),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('RwandaRide'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: () {
-              // Pop to root which triggers auth redirect
-              Navigator.of(context).pushNamedAndRemoveUntil('/logout', (_) => false);
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('RwandaRide')),
       body: IndexedStack(
         index: _tabIndex,
         children: [
-          _BookRideTab(
-            pickupController: _pickupController,
-            destController: _destController,
-            vehicleType: _vehicleType,
-            vehicles: _vehicles,
-            onVehicleSelected: (v) => setState(() => _vehicleType = v),
-            onBook: _bookRide,
-          ),
+          const _BookRideTab(),
           const _MyTripsTab(),
           const _PaymentsTab(),
+          const ProfileScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -108,30 +57,15 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'My Trips'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Payments'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );
   }
 }
 
-// ─── Book Ride Tab ────────────────────────────────
-
 class _BookRideTab extends StatelessWidget {
-  final TextEditingController pickupController;
-  final TextEditingController destController;
-  final String vehicleType;
-  final List<Map<String, dynamic>> vehicles;
-  final ValueChanged<String> onVehicleSelected;
-  final VoidCallback onBook;
-
-  const _BookRideTab({
-    required this.pickupController,
-    required this.destController,
-    required this.vehicleType,
-    required this.vehicles,
-    required this.onVehicleSelected,
-    required this.onBook,
-  });
+  const _BookRideTab();
 
   @override
   Widget build(BuildContext context) {
@@ -144,52 +78,148 @@ class _BookRideTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (activeTrip != null) _ActiveTripBanner(trip: activeTrip),
-          const Text('Where to?',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-          const SizedBox(height: 20),
-          AppTextField(
-            label: 'Pickup location',
-            hint: 'e.g. Kigali Convention Centre',
-            controller: pickupController,
-            prefixIcon: Icons.my_location,
-          ),
-          const SizedBox(height: 12),
-          AppTextField(
-            label: 'Destination',
-            hint: 'e.g. Kimironko Market',
-            controller: destController,
-            prefixIcon: Icons.location_on,
+
+          // Hero booking card
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.primary, Color(0xFF1A5276)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Where to?',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap the button below to open the map and set your pickup and destination',
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: activeTrip != null ? null : () {
+                    Navigator.pushNamed(context, '/map-booking');
+                  },
+                  icon: const Icon(Icons.map, size: 20),
+                  label: const Text('Open Map & Book Ride', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppTheme.primary,
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
-          const Text('Choose vehicle', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+
+          // Rates info
+          const Text('Rates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
-          ...vehicles.map((v) => _VehicleOption(
-                type: v['type'] as String,
-                label: v['label'] as String,
-                icon: v['icon'] as IconData,
-                rate: v['rate'] as String,
-                selected: vehicleType == v['type'],
-                onTap: () => onVehicleSelected(v['type'] as String),
-              )),
-          const SizedBox(height: 24),
-          PrimaryButton(
-            label: 'Request Ride',
-            icon: Icons.directions_car,
-            loading: provider.loading,
-            onPressed: activeTrip != null ? null : onBook,
-          ),
+          _RateCard(icon: Icons.two_wheeler, label: 'Moto', rate: '200 RWF/km', color: Colors.orange),
+          const SizedBox(height: 8),
+          _RateCard(icon: Icons.directions_car, label: 'Economy', rate: '350 RWF/km', color: AppTheme.primary),
+          const SizedBox(height: 8),
+          _RateCard(icon: Icons.car_rental, label: 'Standard', rate: '500 RWF/km', color: Colors.purple),
+          const SizedBox(height: 8),
+          _RateCard(icon: Icons.airport_shuttle, label: 'XL', rate: '700 RWF/km', color: AppTheme.success),
         ],
       ),
     );
   }
 }
 
-class _ActiveTripBanner extends StatelessWidget {
+class _RateCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String rate;
+  final Color color;
+
+  const _RateCard({required this.icon, required this.label, required this.rate, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 12),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+          const Spacer(),
+          Text(rate, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveTripBanner extends StatefulWidget {
   final Trip trip;
   const _ActiveTripBanner({required this.trip});
 
   @override
+  State<_ActiveTripBanner> createState() => _ActiveTripBannerState();
+}
+
+class _ActiveTripBannerState extends State<_ActiveTripBanner> {
+  Timer? _timer;
+  Trip? _currentTrip;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTrip = widget.trip;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!mounted || _currentTrip == null) return;
+      try {
+        final detail = await ApiService.getTripDetail(_currentTrip!.id);
+        if (!mounted) return;
+        final newStatus = detail['status'] as String;
+        if (newStatus != _currentTrip!.status) {
+          setState(() {
+            _currentTrip = Trip(
+              id: _currentTrip!.id,
+              riderId: _currentTrip!.riderId,
+              driverId: _currentTrip!.driverId,
+              pickupLocation: _currentTrip!.pickupLocation,
+              destination: _currentTrip!.destination,
+              fare: detail['fare'] != null ? (detail['fare'] as num).toDouble() : _currentTrip!.fare,
+              status: newStatus,
+              createdAt: _currentTrip!.createdAt,
+            );
+          });
+          if (newStatus == 'completed') {
+            _timer?.cancel();
+            if (mounted) Navigator.pushNamed(context, '/invoice', arguments: _currentTrip);
+          }
+        }
+      } catch (e) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final trip = _currentTrip!;
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/rider/trip-detail', arguments: trip),
       child: Container(
@@ -223,61 +253,6 @@ class _ActiveTripBanner extends StatelessWidget {
   }
 }
 
-class _VehicleOption extends StatelessWidget {
-  final String type;
-  final String label;
-  final IconData icon;
-  final String rate;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _VehicleOption({
-    required this.type,
-    required this.label,
-    required this.icon,
-    required this.rate,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primary.withOpacity(0.08) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? AppTheme.primary : const Color(0xFFDDE1E7), width: selected ? 2 : 1),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: selected ? AppTheme.primary : AppTheme.textMuted, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: selected ? AppTheme.primary : AppTheme.textDark)),
-            ),
-            Text('$rate RWF/km',
-                style: TextStyle(color: selected ? AppTheme.primary : AppTheme.textMuted, fontSize: 13)),
-            const SizedBox(width: 8),
-            Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: selected ? AppTheme.primary : AppTheme.textMuted,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── My Trips Tab ─────────────────────────────────
-
 class _MyTripsTab extends StatefulWidget {
   const _MyTripsTab();
 
@@ -286,12 +261,23 @@ class _MyTripsTab extends StatefulWidget {
 }
 
 class _MyTripsTabState extends State<_MyTripsTab> {
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TripProvider>().loadMyTrips();
     });
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) context.read<TripProvider>().loadMyTrips();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -336,7 +322,10 @@ class _TripTile extends StatelessWidget {
     switch (trip.status) {
       case 'requested': return Colors.orange;
       case 'accepted': return AppTheme.primary;
+      case 'driver_arrived': return Colors.orange;
+      case 'ongoing': return AppTheme.primary;
       case 'completed': return AppTheme.success;
+      case 'paid': return AppTheme.success;
       default: return AppTheme.danger;
     }
   }
@@ -357,7 +346,8 @@ class _TripTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: _statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                    color: _statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20)),
                 child: Text(trip.statusLabel,
                     style: TextStyle(color: _statusColor, fontSize: 12, fontWeight: FontWeight.w600)),
               ),
@@ -366,21 +356,17 @@ class _TripTile extends StatelessWidget {
             Row(children: [
               const Icon(Icons.my_location, size: 14, color: AppTheme.primary),
               const SizedBox(width: 6),
-              Expanded(
-                  child: Text(trip.pickupLocation,
-                      style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(trip.pickupLocation,
+                  style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
             ]),
             const SizedBox(height: 4),
             Row(children: [
               const Icon(Icons.location_on, size: 14, color: AppTheme.danger),
               const SizedBox(width: 6),
-              Expanded(
-                  child: Text(trip.destination,
-                      style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(trip.destination,
+                  style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
             ]),
             if (trip.fare != null) ...[
               const SizedBox(height: 8),
@@ -393,8 +379,6 @@ class _TripTile extends StatelessWidget {
     );
   }
 }
-
-// ─── Payments Tab ─────────────────────────────────
 
 class _PaymentsTab extends StatefulWidget {
   const _PaymentsTab();
@@ -463,9 +447,8 @@ class _PaymentTile extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppTheme.success.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  color: AppTheme.success.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12)),
               child: const Icon(Icons.payments, color: AppTheme.success),
             ),
             const SizedBox(width: 12),
@@ -480,10 +463,9 @@ class _PaymentTile extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              '${payment.amount.toStringAsFixed(0)} RWF',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 15),
-            ),
+            Text('${payment.amount.toStringAsFixed(0)} RWF',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 15)),
           ],
         ),
       ),

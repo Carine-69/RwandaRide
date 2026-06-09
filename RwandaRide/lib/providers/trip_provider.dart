@@ -5,12 +5,14 @@ import '../services/api_service.dart';
 class TripProvider extends ChangeNotifier {
   List<Trip> _myTrips = [];
   List<Trip> _availableTrips = [];
+  List<Trip> _completedTrips = [];
   Trip? _activeTrip;
   bool _loading = false;
   String? _error;
 
   List<Trip> get myTrips => _myTrips;
   List<Trip> get availableTrips => _availableTrips;
+  List<Trip> get completedTrips => _completedTrips;
   Trip? get activeTrip => _activeTrip;
   bool get loading => _loading;
   String? get error => _error;
@@ -20,7 +22,10 @@ class TripProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Rider actions ────────────────────────────────
+  void clearActiveTrip() {
+    _activeTrip = null;
+    notifyListeners();
+  }
 
   Future<Trip?> bookRide({
     required String pickupLocation,
@@ -57,15 +62,37 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<void> loadMyTrips() async {
-    _setLoading(true);
     _error = null;
     try {
       _myTrips = await ApiService.getMyTrips();
-      _activeTrip = _myTrips.where((t) => t.isActive).firstOrNull;
+      final active = _myTrips.where((t) => t.isActive).firstOrNull;
+      if (active?.status != _activeTrip?.status) {
+        _activeTrip = active;
+      }
+      notifyListeners();
     } on ApiException catch (e) {
       _error = e.message;
-    } finally {
-      _setLoading(false);
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadDriverActiveTrip() async {
+    _error = null;
+    try {
+      final trips = await ApiService.getMyDriverTrips();
+      _completedTrips = trips.where((t) => t.status == 'completed').toList();
+      final active = trips.where((t) =>
+        t.status == 'accepted' ||
+        t.status == 'driver_arrived' ||
+        t.status == 'ongoing' ||
+        t.status == 'completed'
+      ).firstOrNull;
+      if (active?.id != _activeTrip?.id || active?.status != _activeTrip?.status) {
+        _activeTrip = active;
+        notifyListeners();
+      }
+    } on ApiException catch (e) {
+      _error = e.message;
     }
   }
 
@@ -86,8 +113,6 @@ class TripProvider extends ChangeNotifier {
       _setLoading(false);
     }
   }
-
-  // ─── Driver actions ───────────────────────────────
 
   Future<void> loadAvailableTrips() async {
     _setLoading(true);
@@ -124,7 +149,7 @@ class TripProvider extends ChangeNotifier {
     _error = null;
     try {
       final updated = await ApiService.completeTrip(tripId);
-      _activeTrip = null;
+      _activeTrip = updated;
       _updateTripInList(updated);
       notifyListeners();
       return true;
@@ -139,9 +164,7 @@ class TripProvider extends ChangeNotifier {
 
   void _updateTripInList(Trip updated) {
     final idx = _myTrips.indexWhere((t) => t.id == updated.id);
-    if (idx >= 0) {
-      _myTrips[idx] = updated;
-    }
+    if (idx >= 0) _myTrips[idx] = updated;
   }
 
   void clearError() {

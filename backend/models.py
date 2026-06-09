@@ -39,6 +39,8 @@ class Trip(Base):
     dest_lat = Column(Float)
     dest_lng = Column(Float)
     distance = Column(Float)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
     fare = Column(Float)
     status = Column(String, default="requested")
     created_at = Column(DateTime, default=datetime.utcnow)

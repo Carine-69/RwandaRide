@@ -19,6 +19,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   String _paymentMethod = 'cash';
   bool _paying = false;
   bool _loadingDetail = false;
+  bool _updatingStatus = false;
 
   static const _paymentMethods = ['cash', 'mtn_mobile', 'airtel_money'];
   static const _paymentLabels = {
@@ -43,11 +44,60 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       final detail = await ApiService.getTripDetail(_trip!.id);
       if (mounted) setState(() => _tripDetail = detail);
     } catch (e) {
-      // silently fail, just won't show driver details
     } finally {
       if (mounted) setState(() => _loadingDetail = false);
     }
   }
+
+  Future<void> _markArrived() async {
+    if (_trip == null) return;
+    setState(() => _updatingStatus = true);
+    try {
+      await ApiService.updateTripStatus(_trip!.id, 'ongoing');
+      if (mounted) {
+        setState(() => _trip = Trip(
+          id: _trip!.id,
+          riderId: _trip!.riderId,
+          driverId: _trip!.driverId,
+          pickupLocation: _trip!.pickupLocation,
+          destination: _trip!.destination,
+          fare: _trip!.fare,
+          status: 'ongoing',
+          createdAt: _trip!.createdAt,
+        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Journey started!'), backgroundColor: AppTheme.primary),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update status'), backgroundColor: AppTheme.danger),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingStatus = false);
+    }
+  }
+
+  Future<void> _weArrived() async {
+  if (_trip == null) return;
+  setState(() => _updatingStatus = true);
+  try {
+    await ApiService.updateTripStatus(_trip!.id, 'completed');
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/invoice', arguments: _trip);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update status'), backgroundColor: AppTheme.danger),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _updatingStatus = false);
+  }
+}
 
   Future<void> _cancel() async {
     if (_trip == null) return;
@@ -107,7 +157,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             _StatusCard(trip: trip),
             const SizedBox(height: 20),
 
-            // Driver card — shown when driver is assigned
             if (driver != null) ...[
               Card(
                 child: Padding(
@@ -215,6 +264,31 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               ),
             const SizedBox(height: 24),
 
+            // Rider taps "We Arrived" when journey starts
+            if (trip.status == 'driver_arrived') ...[
+              PrimaryButton(
+                label: 'Journey Started',
+                icon: Icons.play_arrow,
+                color: AppTheme.primary,
+                loading: _updatingStatus,
+                onPressed: _markArrived,
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Rider taps "We Arrived" at destination
+            if (trip.status == 'ongoing') ...[
+              PrimaryButton(
+                label: 'We Have Arrived',
+                icon: Icons.location_on,
+                color: AppTheme.success,
+                loading: _updatingStatus,
+                onPressed: _weArrived,
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Payment section after arrival
             if (trip.isCompleted && trip.fare != null) ...[
               const Text('Payment method', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
               const SizedBox(height: 10),
@@ -259,6 +333,8 @@ class _StatusCard extends StatelessWidget {
     switch (trip.status) {
       case 'requested': return Colors.orange;
       case 'accepted': return AppTheme.primary;
+      case 'driver_arrived': return Colors.orange;
+      case 'ongoing': return AppTheme.primary;
       case 'completed': return AppTheme.success;
       default: return AppTheme.danger;
     }
@@ -268,6 +344,8 @@ class _StatusCard extends StatelessWidget {
     switch (trip.status) {
       case 'requested': return Icons.search;
       case 'accepted': return Icons.directions_car;
+      case 'driver_arrived': return Icons.location_on;
+      case 'ongoing': return Icons.play_arrow;
       case 'completed': return Icons.check_circle;
       default: return Icons.cancel;
     }
@@ -286,8 +364,10 @@ class _StatusCard extends StatelessWidget {
         children: [
           Icon(_icon, color: _color, size: 32),
           const SizedBox(width: 12),
-          Text(trip.statusLabel,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: _color)),
+          Expanded(
+            child: Text(trip.statusLabel,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: _color)),
+          ),
         ],
       ),
     );

@@ -9,8 +9,6 @@ import '../models/payment.dart';
 class ApiService {
   static const _tokenKey = 'auth_token';
 
-  // ─── Token storage ───────────────────────────────
-
   static Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
@@ -25,8 +23,6 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
   }
-
-  // ─── HTTP helpers ────────────────────────────────
 
   static Future<Map<String, String>> _authHeaders() async {
     final token = await getToken();
@@ -53,8 +49,6 @@ class ApiService {
     }
     return jsonDecode(response.body) as List<dynamic>;
   }
-
-  // ─── Auth endpoints ──────────────────────────────
 
   static Future<Map<String, dynamic>> register({
     required String name,
@@ -111,7 +105,14 @@ class ApiService {
     _decode(response);
   }
 
-  // ─── Trip endpoints ──────────────────────────────
+  static Future<Map<String, dynamic>> getMe() async {
+    final headers = await _authHeaders();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/auth/me'),
+      headers: headers,
+    );
+    return _decode(response);
+  }
 
   static Future<Trip> createTrip({
     required String pickupLocation,
@@ -149,6 +150,15 @@ class ApiService {
     return _decodeList(response).map((j) => Trip.fromJson(j)).toList();
   }
 
+  static Future<List<Trip>> getMyDriverTrips() async {
+    final headers = await _authHeaders();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/trips/driver-trips'),
+      headers: headers,
+    );
+    return _decodeList(response).map((j) => Trip.fromJson(j)).toList();
+  }
+
   static Future<List<Trip>> getAvailableTrips() async {
     final headers = await _authHeaders();
     final response = await http.get(
@@ -176,6 +186,15 @@ class ApiService {
     return Trip.fromJson(_decode(response));
   }
 
+  static Future<void> updateTripStatus(int tripId, String status) async {
+    final headers = await _authHeaders();
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/trips/$tripId/status?status=$status'),
+      headers: headers,
+    );
+    _decode(response);
+  }
+
   static Future<Trip> cancelTrip(int tripId) async {
     final headers = await _authHeaders();
     final response = await http.patch(
@@ -194,16 +213,23 @@ class ApiService {
     return Trip.fromJson(_decode(response));
   }
 
-static Future<Map<String, dynamic>> getTripDetail(int tripId) async {
-  final headers = await _authHeaders();
-  final response = await http.get(
-    Uri.parse('${ApiConfig.baseUrl}/trips/$tripId/detail'),
-    headers: headers,
-  );
-  return _decode(response);
-}
+  static Future<Map<String, dynamic>> getTripDetail(int tripId) async {
+    final headers = await _authHeaders();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/trips/$tripId/detail'),
+      headers: headers,
+    );
+    return _decode(response);
+  }
 
-  // ─── Payment endpoints ───────────────────────────
+  static Future<Map<String, dynamic>> getInvoice(int tripId) async {
+    final headers = await _authHeaders();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/trips/$tripId/invoice'),
+      headers: headers,
+    );
+    return _decode(response);
+  }
 
   static Future<Payment> createPayment({
     required int tripId,
@@ -227,6 +253,24 @@ static Future<Map<String, dynamic>> getTripDetail(int tripId) async {
       headers: headers,
     );
     return _decodeList(response).map((j) => Payment.fromJson(j)).toList();
+  }
+
+  static Future<Map<String, dynamic>> getDriverWallet() async {
+    final headers = await _authHeaders();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/payments/wallet'),
+      headers: headers,
+    );
+    return _decode(response);
+  }
+
+  static Future<void> confirmPayment(int paymentId) async {
+    final headers = await _authHeaders();
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/payments/$paymentId/confirm'),
+      headers: headers,
+    );
+    _decode(response);
   }
 
   static Future<DriverEarnings> getMyEarnings() async {

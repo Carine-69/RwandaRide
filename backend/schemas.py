@@ -10,12 +10,26 @@ class UserRegister(BaseModel):
     email: Optional[EmailStr] = None
     password: str
     role: str = "rider"
-    # Driver specific fields
+    license_number: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    vehicle_plate: Optional[str] = None
+
+class UserCreate(BaseModel):
+    name: str
+    phone: str
+    email: Optional[EmailStr] = None
+    password: str
+    role: str = "rider"
     license_number: Optional[str] = None
     vehicle_type: Optional[str] = None
     vehicle_plate: Optional[str] = None
 
 class UserLogin(BaseModel):
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: str
+
+class LoginRequest(BaseModel):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     password: str
@@ -40,7 +54,7 @@ class TripCreate(BaseModel):
     pickup_lng: Optional[float] = None
     dest_lat: Optional[float] = None
     dest_lng: Optional[float] = None
-    vehicle_type: str = "moto" # default is moto since it's most common in Rwanda
+    vehicle_type: str = "moto"
 
 class TripResponse(BaseModel):
     id: int
@@ -50,7 +64,11 @@ class TripResponse(BaseModel):
     destination: str
     fare: Optional[float] = None
     status: str
+    vehicle_type: Optional[str] = None
+    distance: Optional[float] = None
     created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -73,7 +91,8 @@ class PaymentResponse(BaseModel):
     class Config:
         from_attributes = True
 
-#_____Driver Info_____________________________________
+# ─── DRIVER SCHEMAS ─────────────────────────────
+
 class DriverInfo(BaseModel):
     name: str
     phone: str
@@ -94,6 +113,8 @@ class TripDetailResponse(BaseModel):
     vehicle_type: Optional[str] = None
     distance: Optional[float] = None
     created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
     driver: Optional[DriverInfo] = None
 
     class Config:

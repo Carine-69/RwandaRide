@@ -19,10 +19,16 @@ class AuthProvider extends ChangeNotifier {
     final token = await ApiService.getToken();
     if (token == null) {
       _status = AuthStatus.unauthenticated;
-    } else {
-      // We store user data in prefs alongside the token so we can restore it
-      // without an extra API call (the API has no /me endpoint yet)
+      notifyListeners();
+      return;
+    }
+    try {
+      final data = await ApiService.getMe();
+      _user = User.fromJson(data);
       _status = AuthStatus.authenticated;
+    } catch (e) {
+      await ApiService.clearToken();
+      _status = AuthStatus.unauthenticated;
     }
     notifyListeners();
   }
@@ -31,7 +37,6 @@ class AuthProvider extends ChangeNotifier {
     _loading = true;
     _error = null;
     notifyListeners();
-
     try {
       final data = await ApiService.login(phone: phone, email: email, password: password);
       await ApiService.saveToken(data['access_token']);
@@ -63,7 +68,6 @@ class AuthProvider extends ChangeNotifier {
     _loading = true;
     _error = null;
     notifyListeners();
-
     try {
       await ApiService.register(
         name: name,
@@ -75,7 +79,6 @@ class AuthProvider extends ChangeNotifier {
         vehicleType: vehicleType,
         vehiclePlate: vehiclePlate,
       );
-      // After register, log in automatically
       return await login(phone: phone, password: password);
     } on ApiException catch (e) {
       _error = e.message;
